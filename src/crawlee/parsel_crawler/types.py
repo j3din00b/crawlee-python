@@ -7,12 +7,12 @@ from crawlee.http_crawler import HttpCrawlingResult
 from crawlee.types import BasicCrawlingContext, EnqueueLinksFunction
 
 if TYPE_CHECKING:
-    from bs4 import BeautifulSoup
+    from parsel import Selector
 
 
 @dataclass(frozen=True)
-class BeautifulSoupCrawlingContext(HttpCrawlingResult, BasicCrawlingContext):
-    """Crawling context used by BeautifulSoupCrawler."""
+class ParselCrawlingContext(HttpCrawlingResult, BasicCrawlingContext):
+    """Crawling context used by ParselCrawler."""
 
-    soup: BeautifulSoup
+    selector: Selector
     enqueue_links: EnqueueLinksFunction

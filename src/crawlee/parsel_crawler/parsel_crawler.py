@@ -2,41 +2,38 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, AsyncGenerator, Iterable, Literal
+from typing import TYPE_CHECKING, Any, AsyncGenerator, Iterable
 
-from bs4 import BeautifulSoup, Tag
+from parsel import Selector
 from typing_extensions import Unpack
 
 from crawlee._utils.blocked import RETRY_CSS_SELECTORS
 from crawlee._utils.urls import convert_to_absolute_url, is_url_absolute
 from crawlee.basic_crawler import BasicCrawler, BasicCrawlerOptions, ContextPipeline
-from crawlee.beautifulsoup_crawler.types import BeautifulSoupCrawlingContext
 from crawlee.enqueue_strategy import EnqueueStrategy
 from crawlee.errors import SessionError
-from crawlee.http_clients import HttpxHttpClient
+from crawlee.http_clients.httpx import HttpxHttpClient
 from crawlee.http_crawler import HttpCrawlingContext
 from crawlee.models import BaseRequestData
+from crawlee.parsel_crawler.types import ParselCrawlingContext
 
 if TYPE_CHECKING:
     from crawlee.types import AddRequestsKwargs, BasicCrawlingContext
 
 
-class BeautifulSoupCrawler(BasicCrawler[BeautifulSoupCrawlingContext]):
-    """A crawler that fetches the request URL using `httpx` and parses the result with `BeautifulSoup`."""
+class ParselCrawler(BasicCrawler[ParselCrawlingContext]):
+    """A crawler that fetches the request URL using `httpx` and parses the result with `Parsel`."""
 
     def __init__(
         self,
         *,
-        parser: Literal['html.parser', 'lxml', 'xml', 'html5lib'] = 'lxml',
         additional_http_error_status_codes: Iterable[int] = (),
         ignore_http_error_status_codes: Iterable[int] = (),
-        **kwargs: Unpack[BasicCrawlerOptions[BeautifulSoupCrawlingContext]],
+        **kwargs: Unpack[BasicCrawlerOptions[ParselCrawlingContext]],
     ) -> None:
-        """Initialize the BeautifulSoupCrawler.
+        """Initialize the ParselCrawler.
 
         Args:
-            parser: The type of parser that should be used by BeautifulSoup
-
             additional_http_error_status_codes: HTTP status codes that should be considered errors (and trigger a retry)
 
             ignore_http_error_status_codes: HTTP status codes that are normally considered errors but we want to treat
@@ -44,8 +41,6 @@ class BeautifulSoupCrawler(BasicCrawler[BeautifulSoupCrawlingContext]):
 
             kwargs: Arguments to be forwarded to the underlying BasicCrawler
         """
-        self._parser = parser
-
         kwargs['_context_pipeline'] = (
             ContextPipeline()
             .compose(self._make_http_request)
@@ -85,8 +80,8 @@ class BeautifulSoupCrawler(BasicCrawler[BeautifulSoupCrawlingContext]):
         )
 
     async def _handle_blocked_request(
-        self, crawling_context: BeautifulSoupCrawlingContext
-    ) -> AsyncGenerator[BeautifulSoupCrawlingContext, None]:
+        self, crawling_context: ParselCrawlingContext
+    ) -> AsyncGenerator[ParselCrawlingContext, None]:
         if self._retry_on_blocked:
             status_code = crawling_context.http_response.status_code
 
@@ -94,7 +89,9 @@ class BeautifulSoupCrawler(BasicCrawler[BeautifulSoupCrawlingContext]):
                 raise SessionError(f'Assuming the session is blocked based on HTTP status code {status_code}')
 
             matched_selectors = [
-                selector for selector in RETRY_CSS_SELECTORS if crawling_context.soup.select_one(selector) is not None
+                selector
+                for selector in RETRY_CSS_SELECTORS
+                if crawling_context.selector.css(selector).get() is not None
             ]
 
             if matched_selectors:
@@ -108,8 +105,8 @@ class BeautifulSoupCrawler(BasicCrawler[BeautifulSoupCrawlingContext]):
     async def _parse_http_response(
         self,
         context: HttpCrawlingContext,
-    ) -> AsyncGenerator[BeautifulSoupCrawlingContext, None]:
-        soup = await asyncio.to_thread(lambda: BeautifulSoup(context.http_response.read(), self._parser))
+    ) -> AsyncGenerator[ParselCrawlingContext, None]:
+        parsel_selector = await asyncio.to_thread(lambda: Selector(body=context.http_response.read()))
 
         async def enqueue_links(
             *,
@@ -123,24 +120,24 @@ class BeautifulSoupCrawler(BasicCrawler[BeautifulSoupCrawlingContext]):
             requests = list[BaseRequestData]()
             user_data = user_data or {}
 
-            link: Tag
-            for link in soup.select(selector):
+            link: Selector
+            for link in parsel_selector.css(selector):
                 link_user_data = user_data
 
                 if label is not None:
                     link_user_data.setdefault('label', label)
 
-                if (url := link.attrs.get('href')) is not None:
+                if (url := link.xpath('@href').get()) is not None:
                     url = url.strip()
 
                     if not is_url_absolute(url):
-                        url = convert_to_absolute_url(context.request.url, url)
+                        url = str(convert_to_absolute_url(context.request.url, url))
 
                     requests.append(BaseRequestData.from_url(url, user_data=link_user_data))
 
             await context.add_requests(requests, **kwargs)
 
-        yield BeautifulSoupCrawlingContext(
+        yield ParselCrawlingContext(
             request=context.request,
             session=context.session,
             proxy_info=context.proxy_info,
@@ -150,5 +147,5 @@ class BeautifulSoupCrawler(BasicCrawler[BeautifulSoupCrawlingContext]):
             push_data=context.push_data,
             log=context.log,
             http_response=context.http_response,
-            soup=soup,
+            selector=parsel_selector,
         )

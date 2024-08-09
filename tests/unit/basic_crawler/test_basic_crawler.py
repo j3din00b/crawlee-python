@@ -11,18 +11,19 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from unittest.mock import Mock
 
+import httpx
 import pytest
-from httpx import Headers, Response
 
 from crawlee import Glob
 from crawlee.autoscaling import ConcurrencySettings
 from crawlee.basic_crawler import BasicCrawler
-from crawlee.basic_crawler.errors import SessionError, UserDefinedErrorHandlerError
-from crawlee.basic_crawler.types import AddRequestsKwargs, BasicCrawlingContext
 from crawlee.configuration import Configuration
 from crawlee.enqueue_strategy import EnqueueStrategy
+from crawlee.errors import SessionError, UserDefinedErrorHandlerError
 from crawlee.models import BaseRequestData, Request
+from crawlee.statistics.models import FinalStatistics
 from crawlee.storages import Dataset, KeyValueStore, RequestList, RequestQueue
+from crawlee.types import AddRequestsKwargs, BasicCrawlingContext, HttpHeaders
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -170,7 +171,7 @@ async def test_calls_error_handler() -> None:
 
     @crawler.error_handler
     async def error_handler(context: BasicCrawlingContext, error: Exception) -> Request:
-        headers = context.request.headers or {}
+        headers = context.request.headers or HttpHeaders()
         custom_retry_count = int(headers.get('custom_retry_count', '0'))
         calls.append((context, error, custom_retry_count))
 
@@ -252,12 +253,12 @@ async def test_handles_error_in_failed_request_handler() -> None:
 
 
 async def test_send_request_works(respx_mock: respx.MockRouter) -> None:
-    respx_mock.get('http://b.com/', name='test_endpoint').return_value = Response(
+    respx_mock.get('http://b.com/', name='test_endpoint').return_value = httpx.Response(
         status_code=200, json={'hello': 'world'}
     )
 
     response_body: Any = None
-    response_headers: Headers | None = None
+    response_headers: HttpHeaders | None = None
 
     crawler = BasicCrawler(
         request_provider=RequestList(['http://a.com/']),
@@ -270,7 +271,7 @@ async def test_send_request_works(respx_mock: respx.MockRouter) -> None:
 
         response = await context.send_request('http://b.com/')
         response_body = response.read()
-        response_headers = response.headers
+        response_headers = HttpHeaders(response.headers)
 
     await crawler.run()
     assert respx_mock['test_endpoint'].called
@@ -278,7 +279,9 @@ async def test_send_request_works(respx_mock: respx.MockRouter) -> None:
     assert json.loads(response_body) == {'hello': 'world'}
 
     assert response_headers is not None
-    assert response_headers.get('content-type').endswith('/json')
+    content_type = response_headers.get('content-type')
+    assert content_type is not None
+    assert content_type.endswith('/json')
 
 
 @dataclass
@@ -636,3 +639,51 @@ async def test_respects_no_persist_storage() -> None:
 
     datasets_path = Path(configuration.storage_dir) / 'datasets' / 'default'
     assert not datasets_path.exists() or list(datasets_path.iterdir()) == []
+
+
+async def test_logs_final_statistics(monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture) -> None:
+    crawler = BasicCrawler(configure_logging=False)
+
+    @crawler.router.default_handler
+    async def handler(context: BasicCrawlingContext) -> None:
+        await context.push_data({'something': 'something'})
+
+    fake_statistics = FinalStatistics(
+        requests_finished=4,
+        requests_failed=33,
+        retry_histogram=[1, 4, 8],
+        request_avg_failed_duration=timedelta(seconds=99),
+        request_avg_finished_duration=timedelta(milliseconds=483),
+        requests_finished_per_minute=0.33,
+        requests_failed_per_minute=0.1,
+        request_total_duration=timedelta(minutes=12),
+        requests_total=37,
+        crawler_runtime=timedelta(minutes=5),
+    )
+
+    monkeypatch.setattr(crawler._statistics, 'calculate', lambda: fake_statistics)
+
+    result = await crawler.run()
+    assert result is fake_statistics
+
+    final_statistics = next(
+        (record for record in caplog.records if record.msg.startswith('Final')),
+        None,
+    )
+
+    assert final_statistics is not None
+    assert final_statistics.msg.splitlines() == [
+        'Final request statistics:',
+        '┌───────────────────────────────┬───────────┐',
+        '│ requests_finished             │ 4         │',
+        '│ requests_failed               │ 33        │',
+        '│ retry_histogram               │ [1, 4, 8] │',
+        '│ request_avg_failed_duration   │ 99.0      │',
+        '│ request_avg_finished_duration │ 0.483     │',
+        '│ requests_finished_per_minute  │ 0.33      │',
+        '│ requests_failed_per_minute    │ 0.1       │',
+        '│ request_total_duration        │ 720.0     │',
+        '│ requests_total                │ 37        │',
+        '│ crawler_runtime               │ 300.0     │',
+        '└───────────────────────────────┴───────────┘',
+    ]
