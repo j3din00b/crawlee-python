@@ -26,6 +26,9 @@ from tests.e2e.project_template.utils import patch_crawlee_version_in_project
         pytest.param('playwright', marks=pytest.mark.playwright),
         pytest.param('parsel', marks=pytest.mark.parsel),
         pytest.param('beautifulsoup', marks=pytest.mark.beautifulsoup),
+        pytest.param('adaptive-beautifulsoup', marks=pytest.mark.adaptive_beautifulsoup),
+        pytest.param('adaptive-parsel', marks=pytest.mark.adaptive_parsel),
+        pytest.param('stagehand', marks=pytest.mark.stagehand),
     ],
 )
 @pytest.mark.parametrize(
@@ -105,6 +108,14 @@ async def test_static_crawler_actor_at_apify(
 
     client = ApifyClientAsync(token=os.getenv('APIFY_TEST_USER_API_TOKEN'))
     actor = client.actor(actor_id)
+
+    # The template ships a placeholder API key, so only validate the build and skip the run.
+    if crawler_type == 'stagehand':
+        try:
+            assert build_process.returncode == 0
+        finally:
+            await actor.delete()
+        return
 
     # Run actor
     try:
