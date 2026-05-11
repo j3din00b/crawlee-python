@@ -11,6 +11,7 @@ All notable changes to this project will be documented in this file.
 - Add opt-in per-domain request throttling for HTTP 429 backoff ([#1762](https://github.com/apify/crawlee-python/pull/1762)) ([c17f4d5](https://github.com/apify/crawlee-python/commit/c17f4d52883763519776d9296b71457b6d3063f0)) by [@MrAliHasan](https://github.com/MrAliHasan), closes [#1437](https://github.com/apify/crawlee-python/issues/1437)
 - Add pre&#x2F;post launch hooks to `BrowserPool` ([#1879](https://github.com/apify/crawlee-python/pull/1879)) ([00ffb7e](https://github.com/apify/crawlee-python/commit/00ffb7e52bed73bc4da7ea34102d589741a3fdf3)) by [@Mantisus](https://github.com/Mantisus), closes [#1741](https://github.com/apify/crawlee-python/issues/1741)
 - Add `StagehandCrawler` with AI-powered browser automation ([#1854](https://github.com/apify/crawlee-python/pull/1854)) ([da84db1](https://github.com/apify/crawlee-python/commit/da84db1282b613ccb2fb205e2f43dfb5a73fea8e)) by [@Mantisus](https://github.com/Mantisus), closes [#1738](https://github.com/apify/crawlee-python/issues/1738)
+- **cli:** Add Adaptive and Stagehand crawler templates ([#1888](https://github.com/apify/crawlee-python/pull/1888)) ([39b2d24](https://github.com/apify/crawlee-python/commit/39b2d24fd29ffc6d144f937c5b070dd4a693b279)) by [@vdusek](https://github.com/vdusek)
 
 ### 🐛 Bug Fixes
 
