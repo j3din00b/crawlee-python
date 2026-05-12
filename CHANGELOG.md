@@ -2,8 +2,7 @@
 
 All notable changes to this project will be documented in this file.
 
-<!-- git-cliff-unreleased-start -->
-## 1.6.4 - **not yet released**
+## [1.7.0](https://github.com/apify/crawlee-python/releases/tag/v1.7.0) (2026-05-12)
 
 ### 🚀 Features
 
@@ -22,7 +21,6 @@ All notable changes to this project will be documented in this file.
 - Fall back to drop+recreate when `RequestQueue.purge` is unsupported ([#1883](https://github.com/apify/crawlee-python/pull/1883)) ([cd15dce](https://github.com/apify/crawlee-python/commit/cd15dce37cf0ca9419625339e60da54f76aead7b)) by [@vdusek](https://github.com/vdusek)
 
 
-<!-- git-cliff-unreleased-end -->
 ## [1.6.3](https://github.com/apify/crawlee-python/releases/tag/v1.6.3) (2026-04-27)
 
 ### 🐛 Bug Fixes
