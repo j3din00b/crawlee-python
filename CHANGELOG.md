@@ -2,6 +2,15 @@
 
 All notable changes to this project will be documented in this file.
 
+<!-- git-cliff-unreleased-start -->
+## 1.7.1 - **not yet released**
+
+### 🐛 Bug Fixes
+
+- Include `sql_mysql` in the `all` extra ([#1895](https://github.com/apify/crawlee-python/pull/1895)) ([4023314](https://github.com/apify/crawlee-python/commit/4023314132b8942519fdee3795107d2169179423)) by [@vdusek](https://github.com/vdusek)
+
+
+<!-- git-cliff-unreleased-end -->
 ## [1.7.0](https://github.com/apify/crawlee-python/releases/tag/v1.7.0) (2026-05-12)
 
 ### 🚀 Features
